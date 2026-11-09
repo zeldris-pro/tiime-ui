@@ -18,7 +18,7 @@ Projet personnel et non officiel, sans lien avec Tiime.
 
 **Transactions**
 - Des lignes compactes avec un liseré à la couleur de la banque, et le tag masqué quand il répète le label.
-- Une barre de comptes avec des noms courts, et un clic pour filtrer sur un compte.
+- Une barre de comptes avec des noms courts, et un clic pour filtrer sur un compte. Les banques sont reconnues toutes seules : la couleur vient de la marque (BNP, Société Générale, Crédit Agricole, CIC, Qonto, Amex… et une teinte stable pour les autres), le nom court est la banque plus ce qui distingue le compte (« Amex Platinum », « CIC Pro »). Les comptes clôturés dans Tiime sont masqués.
 - L'année en cours est sélectionnée à l'arrivée, avec des boutons pour passer d'une année à l'autre ou tout afficher.
 - Un récap : nombre d'opérations, total, entrées et sorties, puis la somme par label, ventilations comprises. Un clic sur un label filtre la liste.
 - Copier / coller une répartition. Tu copies la ventilation d'une ligne (labels et montants) et tu la colles sur une autre ligne du même montant. Le script te demande une confirmation, enregistre la ventilation dans Tiime puis rafraîchit la liste sans recharger la page.
@@ -41,19 +41,16 @@ Projet personnel et non officiel, sans lien avec Tiime.
 
 ## Réglages
 
-Les réglages sont en tête du fichier (`CONFIG`). Pour qu'ils survivent aux mises à jour, garde-les plutôt dans ton navigateur : ouvre la console de apps.tiime.fr et tape
+Il n'y a rien à régler : le script marche tel quel. Pour changer un choix automatique, les réglages sont en tête du fichier (`CONFIG`). Pour qu'ils survivent aux mises à jour, garde-les plutôt dans ton navigateur : ouvre la console de apps.tiime.fr et tape par exemple
 
 ```js
-localStorage.setItem('tiime-ui-config', JSON.stringify({
-  nomsComptes: { 123456: 'Compte pro', 234567: 'Carte' },
-  banquesExclues: ['qonto'],
-  premiereAnnee: 2023,
-}))
+localStorage.setItem('tiime-ui-config', JSON.stringify({ nomsComptes: { 123456: 'Compte joint' }, premiereAnnee: 2020 }))
 ```
 
 | Réglage | Par défaut | Rôle |
 | --- | --- | --- |
-| `nomsComptes` | `{}` | Noms courts des comptes, la clé est l'identifiant Tiime du compte (il apparaît dans l'URL quand tu filtres sur un compte : `bank_account=…`) |
+| `nomsComptes` | `{}` | Nom court imposé pour un compte, la clé est l'identifiant Tiime du compte (il apparaît dans l'URL quand tu filtres sur un compte : `bank_account=…`) |
+| `banques` | `{}` | Couleur imposée pour une banque, la clé est le nom du fichier logo de Tiime (`hello_bank`, `cic`…) |
 | `banquesExclues` | `[]` | Banques à ne jamais afficher dans la barre des comptes |
 | `dateParDefaut` | `'annee'` | Filtre de date ajouté en arrivant sur Transactions, `false` pour aucun |
 | `recap` | `true` | Récap des montants sur Transactions |

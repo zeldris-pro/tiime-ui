@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Tiime UI
 // @namespace    https://github.com/zeldris-pro
-// @version      0.14.0
+// @version      0.15.0
 // @description  Refonte de l'affichage de l'application Tiime (Transactions, Factures envoyées et reçues, Notes de frais, fenêtre Relier), boutons d'année, copier / coller d'une répartition
 // @author       Zeldris
 // @match        https://apps.tiime.fr/*
@@ -18,19 +18,16 @@
 
   // ---------- Réglages ----------
   const CONFIG = {
-    // Couleur du liseré à gauche de chaque ligne, selon le logo de la banque
-    banques: {
-      'hello_bank': '#00b3a6',
-      'cic': '#7c5cff',
-      'american_express': '#2f7de1',
-    },
+    // Les banques sont reconnues toutes seules (couleur du liseré et nom court des comptes).
+    // Les trois réglages suivants ne servent qu'à corriger ce choix automatique.
+    // Couleur imposée pour une banque, clé = nom du fichier logo de Tiime, par exemple { 'hello_bank': '#00b3a6' }
+    banques: {},
+    // Nom court imposé pour un compte, clé = id Tiime du compte, par exemple { 123456: 'Compte pro' }
+    nomsComptes: {},
+    // Banques à ne jamais afficher (les comptes clôturés dans Tiime sont déjà masqués), par exemple ['qonto']
+    banquesExclues: [],
     // Masque le tag sous l'intitulé quand il répète le label
     masquerTagsDoublons: true,
-    // Comptes : noms courts affichés dans la barre (clé = id Tiime du compte), par exemple
-    // { 123456: 'Compte pro', 234567: 'Carte' }. Sans nom court, le nom donné par Tiime s'affiche.
-    nomsComptes: {},
-    // Banques jamais affichées, même si le compte est encore actif chez Tiime, par exemple ['qonto']
-    banquesExclues: [],
     // Filtre de date ajouté en arrivant sur Transactions : 'annee' = depuis le 1er janvier, false = aucun
     dateParDefaut: 'annee',
     // Récap des montants sous les banques
@@ -657,11 +654,57 @@
   // ---------- Ajustements DOM ----------
   const norm = (s) => (s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
 
+  // ---------- Banques reconnues automatiquement ----------
+  // Tiime donne pour chaque compte un logo bank_logos/<fichier>.png et un nom de banque.
+  // La couleur vient de la marque pour les banques courantes, sinon d'une teinte stable tirée du nom.
+  const lettres = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const COULEURS_BANQUES = [
+    [/americanexpress|amex/, '#2f7de1'],
+    [/hellobank/, '#00b3a6'],
+    [/bnp/, '#00915a'],
+    [/cic/, '#7c5cff'],
+    [/creditmutuel|cmb|cmso|arkea/, '#e3001b'],
+    [/societegenerale|sogecash/, '#e9041e'],
+    [/creditagricole/, '#00857b'],
+    [/lcl/, '#1d3f8f'],
+    [/banquepopulaire|bred/, '#0b3c8c'],
+    [/caissedepargne/, '#d6001c'],
+    [/banquepostale|labanquepostale/, '#f2a900'],
+    [/boursorama|boursobank/, '#d1006f'],
+    [/fortuneo/, '#7ab800'],
+    [/^ing|ingdirect/, '#ff6200'],
+    [/qonto/, '#5d50c6'],
+    [/shine/, '#1f6fff'],
+    [/revolut/, '#191c1f'],
+    [/n26/, '#36a18b'],
+    [/monabanq/, '#e6007e'],
+    [/bforbank/, '#ff5a00'],
+    [/axa/, '#00008f'],
+    [/hsbc|ccf/, '#db0011'],
+    [/creditcooperatif/, '#e2001a'],
+    [/memobank/, '#2f2f2f'],
+    [/manager/, '#1e40af'],
+    [/blank/, '#ff5e5b'],
+    [/wise/, '#9fe870'],
+    [/paypal/, '#003087'],
+    [/nickel/, '#ff6c00'],
+    [/orangebank/, '#ff7900'],
+  ];
+  function couleurBanque(cle) {
+    const k = lettres(cle);
+    if (!k) return null;
+    for (const [motif, c] of Object.entries(CONFIG.banques)) if (k.includes(lettres(motif))) return c;
+    for (const [re, c] of COULEURS_BANQUES) if (re.test(k)) return c;
+    let h = 0;
+    for (const ch of k) h = (h * 31 + ch.charCodeAt(0)) % 360;
+    return `hsl(${h} 55% 48%)`;
+  }
+  const fichierLogo = (url) => (url || '').split('/').pop().split(/[?#]/)[0].replace(/\.\w+$/, '');
+
   function traiterLigne(row) {
-    // Liseré de couleur selon la banque
-    const src = row.querySelector('app-bank-logo img')?.getAttribute('src') || '';
-    const cle = Object.keys(CONFIG.banques).find((k) => src.includes(k));
-    if (cle) row.style.setProperty('--tui-bank', CONFIG.banques[cle]);
+    // Liseré de couleur selon la banque (reconnue par le logo)
+    const couleur = couleurBanque(fichierLogo(row.querySelector('app-bank-logo img')?.getAttribute('src')));
+    if (couleur) row.style.setProperty('--tui-bank', couleur);
 
     // Montant positif
     const amount = row.querySelector('.amount');
@@ -701,8 +744,9 @@
       const liste = r.ok ? await r.json() : [];
       comptes = liste.filter((c) =>
         !c.closed &&
-        !CONFIG.banquesExclues.some((b) => (c.bank?.name || c.bank_name || '').toLowerCase().includes(b))
+        !CONFIG.banquesExclues.some((b) => lettres(c.bank?.name || c.bank_name).includes(lettres(b)))
       );
+      nommerComptes(comptes);
       comptesSociete = societe;
     } catch (e) {
       console.warn('[Tiime UI] comptes non chargés', e);
@@ -711,6 +755,48 @@
     } finally {
       chargement = false;
       planifier();
+    }
+  }
+
+  // Nom court de chaque compte : le nom de la banque, plus ce qui distingue ce compte des autres
+  // comptes de la même banque (« Amex Platinum », « Amex Amazon »), ou « Pro » pour un compte pro seul.
+  const NOMS_BANQUES = [
+    [/americanexpress/, 'Amex'], [/societegenerale/, 'Société Générale'], [/creditagricole/, 'Crédit Agricole'],
+    [/banquepostale/, 'La Banque Postale'], [/boursorama|boursobank/, 'BoursoBank'], [/bnpparibas/, 'BNP Paribas'],
+    [/qonto/, 'Qonto'], [/caissedepargne/, "Caisse d'Épargne"], [/creditmutuel/, 'Crédit Mutuel'],
+  ];
+  const MOTS_VIDES = new Set(['CARTE', 'CARD', 'COMPTE', 'COMPTES', 'ACCOUNT', 'BANK', 'CC', 'DE', 'DES', 'DU', 'LA', 'LE', 'LES', 'ET', 'EN',
+    'EUR', 'EURO', 'EUROS', 'M', 'MME', 'MR', 'MLLE', 'BUSINESS', 'CHEQUE', 'CHEQUES', 'COURANT', 'CURRENT', 'CONTRAT', 'GLOBAL', 'PRIVE']);
+  const titre = (m) => m.charAt(0) + m.slice(1).toLowerCase();
+  function nomBanque(c) {
+    const n = c.bank?.brand || c.bank?.name || c.bank_name || '';
+    const k = lettres(n);
+    return NOMS_BANQUES.find(([re]) => re.test(k))?.[1] || n;
+  }
+  function nommerComptes(liste) {
+    const parBanque = new Map();
+    for (const c of liste) {
+      const b = nomBanque(c);
+      if (!parBanque.has(b)) parBanque.set(b, []);
+      parBanque.get(b).push(c);
+    }
+    for (const [banque, groupe] of parBanque) {
+      // Mots du nom du compte, sans les mots génériques ni les morceaux du nom de la banque (« AMERI », « EX »)
+      const motsBanque = norm(groupe[0].bank?.name || banque).split(/[^A-Z0-9]+/).filter(Boolean);
+      const mots = (c) => norm(c.name).split(/[^A-Z0-9*]+/).filter((m) =>
+        m && !MOTS_VIDES.has(m) && !motsBanque.some((b) => b.startsWith(m) || m.startsWith(b)));
+      const listes = groupe.map(mots);
+      groupe.forEach((c, i) => {
+        let precis = '';
+        if (groupe.length === 1) {
+          if (/\bPRO\b|PROFESSIONNEL/.test(norm(c.name))) precis = 'Pro';
+        } else {
+          const propre = listes[i].find((m) => /^[A-Z]{3,}$/.test(m) && !listes.every((l) => l.includes(m)));
+          const fin = norm(c.name).match(/\*{2,}\s*(\d{3,})/)?.[1];
+          precis = propre ? titre(propre) : fin ? '••' + fin : c.bank_account_type?.description || String(i + 1);
+        }
+        c.tuiNom = precis ? `${banque} ${precis}` : banque;
+      });
     }
   }
 
@@ -733,7 +819,7 @@
       const logo = compte.bank?.logo_url;
       a.innerHTML = (logo ? `<img alt="">` : '') + `<span class="tui-nom"></span><span class="tui-solde"></span>`;
       if (logo) a.querySelector('img').src = logo;
-      a.querySelector('.tui-nom').textContent = CONFIG.nomsComptes[compte.id] || compte.name;
+      a.querySelector('.tui-nom').textContent = CONFIG.nomsComptes[compte.id] || compte.tuiNom || compte.name;
       a.querySelector('.tui-solde').textContent = euros.format(compte.balance_amount);
       a.querySelector('.tui-solde').classList.toggle('neg', compte.balance_amount < 0);
       a.title = `${compte.bank?.name || ''} · ${compte.name}`;
