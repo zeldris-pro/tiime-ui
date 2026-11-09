@@ -7,7 +7,7 @@
 // @match        https://apps.tiime.fr/*
 // @grant        none
 // @run-at       document-start
-// @homepage     https://zeldris-pro.github.io/tiime-ui/
+// @homepage     https://tiime.zeldris.pro
 // @supportURL   https://github.com/zeldris-pro/tiime-ui/issues
 // @updateURL    https://raw.githubusercontent.com/zeldris-pro/tiime-ui/main/tiime-ui.user.js
 // @downloadURL  https://raw.githubusercontent.com/zeldris-pro/tiime-ui/main/tiime-ui.user.js

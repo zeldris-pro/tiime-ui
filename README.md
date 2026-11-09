@@ -4,7 +4,7 @@ Un userscript qui rend l'application web [Tiime](https://apps.tiime.fr) plus den
 
 Projet personnel et non officiel, sans lien avec Tiime.
 
-**Page de présentation :** https://zeldris-pro.github.io/tiime-ui/
+**Page de présentation :** https://tiime.zeldris.pro
 
 ## Installation
 
